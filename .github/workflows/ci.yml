@@ -1,0 +1,41 @@
+name: Pull Request
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - '*'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up python
+        id: setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install the latest version of rye
+        id: setup-rye
+        uses: eifinger/setup-rye@v2
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: rye sync
+
+      - name: Run ruff
+        run: make ruff
+
+      - name: Run mypy
+        run: make mypy
+
+      - name: Run flake8
+        run: make flake8

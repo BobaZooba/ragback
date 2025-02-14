@@ -1,0 +1,188 @@
+[project]
+name = "backend"
+description = "Add your description here"
+authors = [
+    { name = "Boris Zubarev", email = "bobazooba@gmail.com" }
+]
+dependencies = [
+    "pydantic>=2.10.6",
+    "pydantic-settings>=2.7.1",
+    "fastapi>=0.115.8",
+    "uvicorn>=0.34.0",
+    "click>=8.1.8",
+    "mako>=1.3.9",
+    "cohere>=5.13.12",
+    "qdrant-client>=1.13.2",
+    "tenacity>=9.0.0",
+    "openai>=1.62.0",
+    "dishka>=1.4.2",
+    "structlog>=25.1.0",
+]
+readme = "README.md"
+requires-python = ">= 3.12"
+dynamic = ["version"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Typing :: Typed",
+]
+
+[build-system]
+requires = ["setuptools>=61.0", "setuptools-git-versioning<2"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools-git-versioning]
+enabled = true
+
+[tool.rye]
+managed = true
+dev-dependencies = [
+    "ruff>=0.9.6",
+    "mypy>=1.15.0",
+    "wemake-python-styleguide>=1.0.0",
+    "mypy-extensions>=1.0.0",
+    "pytest>=8.3.4",
+    "flake8-pyproject>=1.2.3",
+    "pre-commit>=4.1.0",
+]
+
+[tool.mypy]
+# https://mypy.readthedocs.io/en/latest/config_file.html#using-a-pyproject-toml-file
+python_version = "3.12"
+follow_imports = "silent"
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_any_generics = true
+check_untyped_defs = true
+no_implicit_reexport = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+# https://docs.pytest.org/en/6.2.x/customize.html#pyproject-toml
+norecursedirs = ["hooks", "*.egg", ".eggs", "dist", "build", "docs", ".tox", ".git", "__pycache__"]
+doctest_optionflags = ["NUMBER", "NORMALIZE_WHITESPACE", "IGNORE_EXCEPTION_DETAIL"]
+asyncio_mode = "auto"
+filterwarnings = "ignore::DeprecationWarning"
+env_override_existing_values = 1
+env_files = [".env", "default.env"]
+
+addopts = [
+    "--strict-markers",
+    "--tb=short",
+    "--doctest-modules",
+    "--doctest-continue-on-failure",
+]
+
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')"
+]
+
+[tool.ruff]
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "constant.py",
+    "prompts.py",
+    "messages.py",
+]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+fixable = ["ALL"]
+select = ["F", "E", "B", "Q", "W", "I001"]
+ignore = ["E203", "D", "I", "B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.flake8]
+exclude = ["typings"]
+max-arguments = 10
+max-imports = 15
+max-line-length = 100
+max-methods = 12
+max-module-members = 9
+show-source = true
+show-violation-links = true
+strictness = "long"
+docstring-style = "numpy"
+inline-quotes = "double"
+ignore = [
+    "E203", "WPS221", "WPS201", "WPS473", "WPS421", "I001", "I003", "I004", "I005", "D100",
+    "D101", "D102", "D103", "D104", "D105", "D106", "D107", "D401", "D419", "W504", "W503",
+    "X100", "RST303", "RST304", "DAR103", "DAR203", "WPS110", "WPS115", "WPS214", "WPS306",
+    "WPS305", "WPS336", "WPS226", "WPS237", "WPS324", "WPS348", "S311", "F401", "WPS412",
+    "WPS352", "WPS210", "WPS202", "WPS100", "WPS229", "E704", "WPS211", "WPS232", "WPS441",
+    "WPS230", "WPS337", "WPS231", "WPS507"
+]
+per-file-ignores = [
+    "__init__.py: WPS201",
+    "enums.py: WPS115",
+    "tests/*.py: WPS219, E501, S101, S105, S106, WPS202, WPS204, WPS210, WPS217, WPS226, WPS352, WPS437, WPS442, WPS432, WPS114, WPS201, WPS218, WPS450, WPS317, WPS118, WPS316",
+    "*/base.py: E704, WPS428, WPS220, WPS420",
+    "cli/*.py: WPS432, WPS216",
+    "**/registry.py: WPS335",
+]
+
+[tool.coverage.run]
+source = ["tests"]
+omit = [
+    "*/tests/*",
+    "*/__init__.py",
+    "*/logging.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self\\.debug:",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "pass",
+]
+
+[tool.coverage.paths]
+source = [
+    "src",
+    "tests"
+]
+
+[coverage.paths]
+source = "src"
+
+[coverage.run]
+branch = true
+
+[coverage.report]
+fail_under = 50
+show_missing = true

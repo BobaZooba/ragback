@@ -1,0 +1,39 @@
+# Version control
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv
+venv/
+ENV/
+
+# Rye
+.python-version
+.rye/
+
+# Development
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Project specific
+tests/
+docs/
+*.md
+docker-compose*.yml
+Dockerfile
+.dockerignore
+
+# Logs and databases
+*.log
+*.sqlite
+
+# Environment variables
+.env
+.env.*
