@@ -9,6 +9,7 @@ A service for generating AI character responses in dialogue context. Key feature
 
 The service is designed as an independent microservice responsible only for response generation. Storage of dialogue
 history, user information, and character data is assumed to be handled by a separate service.
+
 **Tech stack:** Python 3.12, FastAPI, OpenRouter (via OpenAI lib), Cohere for embeddings, Qdrant for vector search.
 
 # My approach
