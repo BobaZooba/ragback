@@ -23,7 +23,7 @@ class Config(BaseSettings):
 
     @property
     def is_debug(self) -> bool:
-        return self.environment == Environment.DEVELOPMENT and self.api.workers == 1
+        return self.environment == Environment.DEVELOPMENT and self.api.workers is None
 
     class Config:
         env_file = ".env"
