@@ -1,305 +1,327 @@
 # ragback
 
-English version in README-EN.md
+A service for generating AI character responses in dialogue context. Key features:
+
+- Generation of context-aware responses considering character personality
+- Retrieval and utilization of relevant user facts through RAG (Retrieval Augmented Generation)
+- Maintaining character consistency throughout the dialogue
+- Flexible prompt system that considers situation and context
+
+The service is designed as an independent microservice responsible only for response generation. Storage of dialogue
+history, user information, and character data is assumed to be handled by a separate service.
+**Tech stack:** Python 3.12, FastAPI, OpenRouter (via OpenAI lib), Cohere for embeddings, Qdrant for vector search.
 
 # My approach
 
-Исходя из ТЗ я предполагал, что данный сервис будет отвечать только за генерацию ответа от LLM. Поэтому здесь нет
-хранения Character, User и сообщений. Поэтому здесь нет базы данных и кеша, даже id. Я предполагаю, что за формирование
-контекста и хранение всей этой информации отвечает другой сервис. То есть он и будет являться источником инстины
+This service would only be responsible for generating responses from
+the LLM. Therefore, there is no storage of Characters, Users, and messages. Hence, there is no database and cache, not
+even IDs. I assume that another service is responsible for context formation and storing all this information. That
+service will be the source of truth.
 
-Поэтому контракты и выглядят так:
-На вход я принимаю историю сообщений, информацию о пользователе, информацию о персонаже.
-На выход отдаю сгенерированное персонажем сообщение и использованные результаты поиска (факты о пользователе).
+Therefore, the contracts look like this:
+As input, I accept message history, user information, and character information.
+As output, I provide the character-generated message and the used search results (facts about the user).
 
-Как работает:
+How it works:
 
-- По последнему сообщению достаются факты
-    - Фильтруются по подобранному трешхолду
-    - Именно последнее сообщение, потому что так меньше шума из-за слишком общего эмбеддера
-        - В реальности надо учить свой эмбеддер
-        - И еще добавить `reranker`
-- В промпт добавляется описание персонажа, найденные факты о пользователе (если имеются), имя пользователя, история
-  диалога (последние n сообщений)
-    - Также в промпте есть дополнительные указания о стиле и формате ответа
-- На основе промпта с помощью LLM генерируется следующая реплика персонажа
+- Facts are retrieved from the last message
+    - They are filtered by a selected threshold
+    - Specifically the last message, because this reduces noise due to the too general embedder
+        - In reality, we need to train our own embedder
+        - And also add a `reranker`
+- The prompt includes character description, found facts about the user (if any), username, dialogue history
+  (last n messages)
+    - The prompt also contains additional instructions about style and response format
+- Based on the prompt, the next character's reply is generated using LLM
 
-## Архитектура
+## Architecture
 
-Использую Domain Driven Design или по крайней мере значительную его часть. Разделяю на слои:
+I use Domain Driven Design, or at least a significant part of it. The code is divided into layers:
 
-- `domain` - описание моделей данных, их сервисов и репозиториев (способа хранения данных)
-- `application` - описание логики, сервисов, интерфейсы к интеграциям
-- `integrations` - реализация интерфейсов интеграций
-- `infrastructure` - конфигурация, DI, реализация репозиториев и прочих методов хранения данных
-- `presentation` - это реализация способов взаимодействия с данным контекстом
+- `domain` - description of data models, their services and repositories (data storage methods)
+- `application` - business logic description, services, integration interfaces
+- `integrations` - implementation of integration interfaces
+- `infrastructure` - configuration, DI, implementation of repositories and other data storage methods
+- `presentation` - implementation of ways to interact with this context
 
-В DDD меня больше всего бесят модели данных и маппинги данных между слоями. Domain <-> infra, domain <-> application,
-application <-> presentation. Это занимает много времени, поэтому я сознательно от этого отказался. Не стал использовать
-value object для domain слоя в целях экономии времени. В domain и application слоях использовал pydantic. Сознательно не
-использовал dto в application слое.
+In DDD, what I dislike most are data models and data mappings between layers. Domain <-> infra, domain <-> application,
+application <-> presentation. This takes a lot of time, so I consciously abandoned it. I didn't use value objects for
+the domain layer to save time. I used pydantic in domain and application layers. Deliberately didn't use DTOs in the
+application layer.
 
-Я не делал репозитории и предполагал, что мой сервис не отвечает за хранение данных.
+I didn't create repositories as I assumed my service isn't responsible for data storage.
 
-## Почему 3.12
+## Why Python 3.12
 
-Protocols - описание интерфейсов. Это позволяет задуматься о реализации сильно позже и (что важнее) не привязываться к
-конкретным реализациям (Dependency Inversion). Собственно без этого не мог бы и реализовать DDD. Похожая альтернатива -
-абстрактные классы.
+Protocols - for interface description. This allows thinking about implementation much later and (more importantly) not
+being tied to specific implementations (Dependency Inversion). Actually, couldn't implement DDD without this. A similar
+alternative is abstract classes.
 
-Generic - здесь почти не использовал, только в `PromptBuilder`.
+Generics - used minimally here, only in `PromptBuilder`.
 
-## Библиотеки
+## Libraries
 
-`rye` - вместо `poetry`. Просто невероятное хорошее решение для менджмента зависимостей, venv и всего прочего. Убирает
-бОльшую часть головной боли конлифктом версий питона. На базе `uv`, поэтому быстро загружает зависимости.
+`rye` - instead of `poetry`. An incredibly good solution for dependency management, venv, and everything else. Removes
+most of the headaches with Python version conflicts. Based on `uv`, so it loads dependencies quickly.
 
-Для запуска команд использую `Makefile`. Предпочитаю `justfile` (https://github.com/casey/just), но он менее популярен.
+I use `Makefile` for running commands. I prefer `justfile` (https://github.com/casey/just), but it's less popular.
 
 ### Code style
 
-- `mypy` - для типизированного питона
-- `ruff` - для единого код стайла (вместо `black`)
-- `wemake-python-styleguide` - самый строгий и настраиваемый линтер (на базе
+- `mypy` - for typed Python
+- `ruff` - for unified code style (instead of `black`)
+- `wemake-python-styleguide` - the strictest and most configurable linter (based on
   flake8): https://github.com/wemake-services/wemake-python-styleguide
-- `pre-commit` - для проверок и для запуска `ruff` перед коммитом
+- `pre-commit` - for checks and running `ruff` before commit
 
-В Github CI настроил только `code style` и `mypy`. Обычно туда добавляю еще тесты и деплой или хотя бы билд докера и
-складирование его в нужное место для деплоя.
+In Github CI, I only set up `code style` and `mypy`. Usually, I also add tests and deployment, or at least Docker build
+and storing it in the right place for deployment.
 
 ### Backend
 
-- `fastapi` - для асинхронного API
-- `pydantic` - для моделей данных и валидации
-- `pydantic-settings` - для настройки конфигов и чтение из `.env`
+- `fastapi` - for asynchronous API
+- `pydantic` - for data models and validation
+- `pydantic-settings` - for config setup and reading from `.env`
 - `tenacity` - retry policy
-- `structlog` - для структурированных логов. Использовал мало и не настраивал, чтобы можно было в `json` хранить для
-  экономии времени
-- `dishka` - для внедрения зависимостей: https://github.com/reagento/dishka
-- `pytest` - использовал бы для тестов, но это было бы уже чересчур для тестового
-- `click` - для конфигурирования `cli` тулзов
-- `uuid` - использовал бы для id, если бы было что хранить
+- `structlog` - for structured logs. Used minimally and without configuration to store in `json` to save time
+- `dishka` - for dependency injection: https://github.com/reagento/dishka
+- `pytest` - would use for tests, but that would be excessive for a test task
+- `click` - for configuring `cli` tools
+- `uuid` - would use for IDs if there was anything to store
 
 ### LLM
 
-- `mako` - для темплейтов по типу `jinja`
-- `openai` - на самом деле использую OpenRouter
-- `cohere` - для получения эмбеддингов, потому что у них достаточно неплохие модели
-- `qdrant` - векторная база данных. Векторных баз слишком много, преимущества этой: есть все что мне нужно; скейлится
-  хорошо; знаю CTO и могу самому себе гарантировать качество его работы; написана на расте, а раст я знаю
+- `mako` - for templates like `jinja`
+- `openai` - actually using OpenRouter
+- `cohere` - for getting embeddings, because they have quite good models
+- `qdrant` - vector database. There are too many vector databases, advantages of this one: has everything I need; scales
+  well; I know the CTO and can guarantee its quality myself; written in Rust, which I know
 
-### Логирование
+### Logging
 
-Я мало где логировал. Настройка логирования важная тема, но достаточно долгая. Я показал пару примеров логирования,
-чтобы убедить читателя, что я знаю что это такое, что надо бы хранить структурированные логи и тд.
+I didn't log much. Setting up logging is an important but time-consuming topic. I showed a few logging examples to
+convince the reader that I know what it is, that structured logs should be stored, etc.
 
-### Обработка ошибок
+### Error Handling
 
-Я сознательно мало обрабатывал ошибки, чтобы сэкономить время. Это достаточно понятная, но кропотливая работа, которая
-заняла бы много времени. Ну и все таки это не раст, где обязательно нужно обрабатывать ошибки, а питон, который
-позволяет делать так, как есть сейчас.
+I deliberately handled few errors to save time. This is quite understandable but meticulous work that would take a lot
+of time.
 
-### Тесты
+### Tests
 
-Я не писал тесты, потому что это выходит за рамки ТЗ. Если бы писал, то использовал бы `pytest`, fixtures, моки, monkey
-patching.
+I didn't write tests because it's beyond the scope of the requirements. If I were to write them, I would use `pytest`,
+fixtures, mocks, monkey patching.
 
 # How to run
 
-1. Установите `rye` (https://rye.astral.sh/)
-2. Сделайте файл `.env` и заполните его по аналогии с `.env.template`. Понадобится получить ключ от
-   OpenRouter (https://openrouter.ai/) и cohere (https://cohere.com/). OpenRouter - это агрегатор LLM от разных
-   провайдеров, Cohere нужен для эмбеддинг моделей
-3. В терминале введите `make dc.up`, чтобы поднять контейнер с `qdrant` - база векторного поиска
-4. В терминале введите `make add-facts`. Эта команда заполняет `qdrant` фактами о пользователе
-5. В терминале введите `make run`. Эта команда запускает API сервис
-6. В терминале введите `make interact`. Эта команда стартует диалог в терминале. Подождите пару секунд пока бот не
-   напишет первое сообщение
+1. Install `rye` (https://rye.astral.sh/)
+2. Create an `.env` file and fill it following the `.env.template` example. You'll need to obtain API keys from
+   OpenRouter (https://openrouter.ai/) and Cohere (https://cohere.com/). OpenRouter is an aggregator of LLMs from
+   different
+   providers, while Cohere is needed for embedding models
+3. In the terminal, enter `make dc.up` to start the `qdrant` container - a vector search database
+4. In the terminal, enter `make add-facts`. This command populates `qdrant` with facts about the user
+5. In the terminal, enter `make run`. This command starts the API service
+6. In the terminal, enter `make interact`. This command starts a dialogue in the terminal. Wait a few seconds until the
+   bot
+   writes its first message
 
-Решение работает и без RAG. То есть можно не запускать `qdrant`.
+The solution works without RAG as well. So you don't have to run `qdrant`.
 
-# Character consistently
+# Character consistency
 
-Какая работа проведена:
+Work done:
 
-- Написание промптов
-- Написание описаний персонажа
-- Генерация фактов о пользователе
-- Ручное тестирование в диалоге и анализ ошибок
-- Подбор трешхолда по векторной близости фактов
-- Подбор модели
+- Writing prompts
+- Writing character descriptions
+- Generating facts about the user
+- Manual testing in dialogue and error analysis
+- Selecting threshold for vector similarity of facts
+- Model selection
 
-Промпт заточен под ситуацию. Эту информацию можно было бы вынести на уровень персонажа. Еще я бы в API передавал бы
-описание ситуации. Тогда получилось бы так: персонаж + пользователь + ситуация. Но ТЗ и время такого не подразумевали.
+The prompt is tailored for the situation. This information could have been moved to the character level. I would also
+pass the situation description in the API. Then it would be: character + user + situation. But the requirements and time
+didn't imply this.
 
-В реальности я бы еще хранил факты о персонаже.
+In reality, I would also store facts about the character.
 
-## Как учитывается ситуация
+## How the situation is taken into account
 
-В промпте явно указано, что нужно использовать разные действия. Примеры: *fist bumps*, *sips drink*, *checks menu* и тд.
-Это позволяет лучше погрузиться в ситуацию, не упоминая явно в какой ситуации мы находимся. Таким образом и за счет
-промпта модель явно показывает контекст. У модели явно есть возможность совершать небольшие действия и погружать
-пользователя в разыгрываемую ситуацию.
+The prompt explicitly states that different actions should be used. Examples: *fist bumps*, *sips drink*, *checks menu*,
+etc. This allows for better immersion in the situation without explicitly mentioning what situation we're in. Thus,
+through the prompt, the model clearly shows context. The model explicitly has the ability to perform small actions and
+immerse the user in the simulated situation.
 
-## Как персонаж остается консистентным
+## How the character remains consistent
 
-За счет подобранной модели. Явной проверки не происходит. Ручное тестирование и оптимизация промптов, описаний.
+Through the selected model. There is no explicit verification. Manual testing and optimization of prompts and
+descriptions.
 
-**Из необычного**: промпт оптизировал с помощью Claude. В контекте у Claude был текст тестового задания, текущий промпт,
-описание персонажа. Я подавал разные мои диалоги по несколько штук, указывал что мне не нравится и просил переписать
-промпт или его часть. Вычитывал получившийся промпт и просил исправить те места, которые меня смущали. Далее опять
-общался и подавал диалоги. Таким образом получилось, например, побороть слишком длинные реплики и правильное
-использование астериксов (*sips drink*). Постарался сделать так, чтобы промпт не был заточен под определенную модель, а
-был полезным и понятным и для других моделей.
+**Advancements**: I optimized the prompt using Claude. Claude had the test task text, current prompt, and character
+description in context. I submitted several of my dialogues, indicated what I didn't like, and asked to rewrite the
+prompt or parts of it. I reviewed the resulting prompt and asked to fix places that concerned me. Then again
+communicated and submitted dialogues. This way, for example, I managed to overcome too long replies and correct use of
+asterisks (*sips drink*). I tried to make sure the prompt wasn't tailored to a specific model, but would be useful and
+understandable for other models as well.
 
-## Важный дисклеймер
+## Important disclaimer
 
-Для такой задачи опен сорсные модели очень плохо подходят. Нужно тренировать свои. Поэтому оптимизация качества кажется
-излишней на данном этапе.
+Open source models are very poorly suited for such a task. You need to train your own. Therefore, quality optimization
+seems excessive at this stage.
 
 # Metrics
 
-Метрики в таких задачах строятся на основе разметки данных. Для разметки данных нужен либо человек, либо приближение к
-человеку (LLM-as-judge). Так что в отличие от других задач мы не можем за секунду посчитать метрики.
+Metrics in such tasks are built based on data labeling. For data labeling, you need either a human or an approximation
+of a human (LLM-as-judge). So unlike other tasks, we cannot calculate metrics instantly.
 
-Какие бывают метрики? Относительные и абсолютные. Оффлайн и онлайн. Разметка бывает для расчета метрик и для дообучения
-моделей. Оценивать можно весь диалог, а можно только один ответ в диалоге.
+What types of metrics exist? Relative and absolute. Offline and online. Labeling can be done for calculating metrics and
+for model fine-tuning. We can evaluate the entire dialogue or just one response in a dialogue.
 
-## Абсолютные
+## Absolute
 
-Абсолютные метрики удобны тем, что можно посчитать метрику моделей и понять какая лучше. Звучит прекрасно, но это не
-работает в
-реальности. Глобальные бенчмарки типа MMLU уже потеряли свою значимость.
+Absolute metrics are convenient because you can calculate a metric for models and understand which one is better. Sounds
+great, but it doesn't work in reality. Global benchmarks like MMLU have already lost their significance.
 
-Минусов же у таких метрик слишком много. Первый минус - инструкция. Обновили инструкцию? Уже нельзя сравнивать модели
-между собой, потому что чуточку, но по разному оцениваются. Не обновлять инструкцию невозможно. Более того она с учетом
-продуктовых требований слишком часто меняется. Так что выделенный раннее плюс слишком эфимерный.
+There are too many downsides to such metrics. The first downside is instructions. Updated the instructions? You can no
+longer compare models with each other because they are evaluated slightly differently. Not updating instructions is
+impossible. Moreover, with product requirements, they change too frequently. So the previously highlighted advantage is
+too ephemeral.
 
-Задизайнили шкалу:
+Designed a scale:
 
-- 0 - плохой ответ
-- 1 - нормальный ответ
-- 2 - хороший ответ
+- 0 - bad response
+- 1 - normal response
+- 2 - good response
 
-Делаем продукт, сначала доля 0 слишком высока, потом 1, потом 2. Получаем процент двоек скажем 95. Что дальше? Обновим
-инструкцию?
+We develop the product, initially the proportion of 0s is too high, then 1s, then 2s. We get say 95% of twos. What next?
+Update the instructions?
 
-- 3 - прекрасный ответ
-- 4 - невероятный ответ
-- 5 - невобразимо впечатляющий ответ
+- 3 - excellent response
+- 4 - incredible response
+- 5 - unimaginably impressive response
 
-Так не получится. Каждую категорию вы должны хорошо описать, корнернейсы, чем 3 отличается от 4 и так далее. Ответ может
-быть хорош с точки зрения соответствия персонажу, но плох с точки зрения вовлеченности. Окей, давайте сделаем две
-метрики. В своих исследованиях раннее я дошел до примерно 50 потенциальных критериев оценки.
+This won't work. You must describe each category well, corner cases, how 3 differs from 4 and so on. A response might be
+good in terms of character consistency but poor in terms of engagement. Okay, let's make two metrics. In my previous
+research, I reached about 50 potential evaluation criteria.
 
-В общем, все это сложно задизайнить и переложить в инструкцию, которую кто-то поймет. А потом все равно придется менять.
-А в итоге все равно решения принимаются таким: у модели A метрика 73, а у модели B 70. Значит катит на прод модель A.
+In general, all this is difficult to design and translate into instructions that someone will understand. And then
+you'll have to change it anyway. And in the end, decisions are still made like this: model A has metric 73, model B has
 
-Зачем тогда нужны абсолютные оценки?
+70. So model A goes to production.
 
-Предлагаю использовать эти метрики для оценки снизу. Скорее это про проверку, а не про улучшения. То есть расти мы можем
-много куда и заранее не знаем куда, но мы, как правило, точно знаем чего мы не хотим.
+Why then do we need absolute evaluations?
 
-Примеры:
+I suggest using these metrics for lower bound evaluation. It's more about verification rather than improvements. That
+is, we can grow in many directions and don't know where in advance, but we usually know exactly what we don't want.
 
-- Общение про суицид
-- Предложение встретиться в реальной жизни
-- Секстинг
+Examples:
 
-## Относительные
+- Discussion about suicide
+- Suggesting to meet in real life
+- Sexting
 
-Вкратце: даем человеку (или LLM) два варианта. Нужно выбрать какой лучше. Дальше усложняем: какой вариант лучше с точки
-зрения соответствию персонажу? В отличие от абсолютной оценки нам не нужно настолько детально прописывать отличия одной
-категории от другой.
+## Relative
 
-Изменения гораздо более заметны. В абсолютной оценке нельзя поставить 2.3, нужно либо 2, либо 3. Тут же такое работает.
-Одна модель чуть-чуть лучше другой.
+In brief: we give a person (or LLM) two variants. They need to choose which is better. Then we complicate it: which
+variant is better in terms of character consistency? Unlike absolute evaluation, we don't need to describe the
+differences between categories in such detail.
 
-Минусы: мы сравниваем только попарно (или группой). Так что мы не знаем насколько наша текущая модель лучше той модели,
-которая была у нас год назад (с учетом что мы переодически релизим новые). Мы можем это посчитать, но это отдельный
-замер. Мы предполагаем, что если модель A > B, а модель B > C, то A > C.
+Changes are much more noticeable. In absolute evaluation, you can't give 2.3, it must be either 2 or 3. Here such things
+work. One model is slightly better than another.
 
-## Офлайн оценка
+Downsides: we only compare in pairs (or groups). So we don't know how much better our current model is compared to the
+model we had a year ago (considering we periodically release new ones). We can calculate this, but it's a separate
+measurement. We assume that if model A > B, and model B > C, then A > C.
 
-Берем исторические данные, убираем последнюю реплику в диалоге и генерируем ответ новой моделью. Это просто, но есть
-нюанс: такой контекст новая модель может не породить. Получается distribution shift. Если итеративно улучшаем продукт,
-то влияние такого эффекта уже не так велико.
+## Offline evaluation
 
-## Онлайн оценка
+We take historical data, remove the last reply in the dialogue and generate a response with the new model. This is
+simple, but there's a nuance: the new model might not generate such context. This creates a distribution shift. If we
+iteratively improve the product, the impact of such an effect is not so significant.
 
-Сделали модель, попросили людей с ней поговорить. Плюсы: модель работает на том контексте, который сама и породила.
-Минусы: дорого. Автоматизация с помощью LLM пока что опасна (или скорее долго разработать).
+## Online evaluation
 
-## Решение
+We created a model, asked people to talk to it. Pros: the model works on the context it generated itself. Cons:
+expensive. Automation using LLM is still dangerous (or rather takes long to develop).
 
-### Оценка модели на проде
+## Solution
 
-Берем данные за последнюю неделю. Делаем из них диалоги длиной примерно 20 сообщений и с окном в 5.
+### Production Model Evaluation
+
+Take data from the last week. Create dialogues approximately 20 messages long with a window of 5.
 
 #### Moderation
 
-Случайные диалоги отправляем на LLM-as-judge с тегами наличия сообщений от модели:
+Send random dialogues to LLM-as-judge with tags indicating the presence of model messages:
 
 - Hate speech
-- Sexual
+- Sexual content
 - Self-harm
 - Violence
-- Ошибки (грамматические и тд)
+- Errors (grammatical etc.)
 
-Можно также использовать https://platform.openai.com/docs/guides/moderation
+We can also use https://platform.openai.com/docs/guides/moderation
 
-Затем можно будет обучить на этом классификатор и проверять бОльших объем.
+Then we can train a classifier on this data to check larger volumes.
 
 #### Improvements
 
-В ТЗ сказано, что надо оценивать две вещи:
+The requirements state that we need to evaluate two things:
 
-- “In-character” consistency
+- "In-character" consistency
 - Scenario focus
 
-Тут очень хочется поспорить почему именно это надо оценивать. Будто бы продуктово гораздо важнее оценивать вовлеченность
-в
-диалог. Это ведь ведет к более длительной сессии. И еще никак не учитываем аспекты связанные с преподаванием.
+Here I really want to argue why exactly these need to be evaluated. It seems that from a product perspective, it's much
+more important to evaluate engagement in dialogue. This leads to longer sessions. And we're not accounting for
+teaching-related aspects at all.
 
-Нам не так важно, что наша модель получила 76 попугаев в бенчмарке “In-character” consistency. Нам важно стали ли мы
-лучше со временем. Так что мы будем сранивать с диалогами, которые были с предыдущей версией модели. Тоже возьмем
-исторические данные, также порежем на 20 сообщений.
+It's not so important that our model got 76 points in the "In-character" consistency benchmark. What's important is
+whether we've improved over time. So we'll compare with dialogues from the previous model version. We'll take historical
+data and also split it into 20 messages.
 
-Дальше у каждого диалога должны быть данные какого персонажа модель отыгрывала и в какой ситуации.
+Furthermore, each dialogue should have data about which character the model was playing and in what situation.
 
-Пример:
+Example:
 
 ```
-Персонаж 1
-Диалог 1
+Character 1
+Dialogue 1
 
-Персонаж 2
-Диалог 2
+Character 2
+Dialogue 2
 
-Какой из диалогов лучше отыгрывает своего персонажа: 1, 2 или ничья?
+Which dialogue better portrays its character: 1, 2, or a tie?
 ```
 
-Инструкция конечно должна быть больше и покрывать больше кейсов. Что значит лучше отыграть одного или другого персонажа?
-Такая инструкция делается на основе реальных диалогов.
+Of course, the instruction should be more extensive and cover more cases. What does it mean to better portray one
+character versus another?
+Such instruction is created based on real dialogues.
 
-Получаем 3 оценки:
+We get 3 evaluations:
 
-- Насколько модель B лучше модели A соответствует персонажу
-- Насколько модель B лучше модели A соответствует ситуации
-- Насколько модель B лучше вовлекает в диалог, чем модель A
+- How much better model B matches the character compared to model A
+- How much better model B matches the situation compared to model A
+- How much better model B engages in dialogue compared to model A
 
-Где модель B - это новая модель, которая последнюю неделю отвечает в проде, а модель A - это модель, которая отвечала
-раньше в проде.
+Where model B is the new model that has been responding in production for the last week, and model A is the model that
+was
+responding in production before.
 
-Если новая модель где-то проигрывает, то надо переходить к анализу ошибок (что является таким же большим топиком как и
-расчет метрик) и работать над моделью C. Модель C надо будет сравнить также и с моделью B. Нужно ли откатывать до модели
-A является спорным моментом.
+If the new model underperforms in some areas, we need to move on to error analysis (which is as big a topic as metric
+calculation) and work on model C. Model C will need to be compared with model B as well. Whether we should roll back to
+model
+A remains a debatable point.
 
-### Катить ли новую модель?
+### Should we roll out the new model?
 
-Берем также исторические данные, убираем последнюю реплику, генерим новой моделью. Нужно оценивать разные места в
-диалогах, начало, середина, конец, то есть должен быть разный размер контекста. Дальше оцениваем насколько новый ответ
-лучше старого по критериям выше. Ожидаем, что мы оптимизируемся примерно на одном и том же потоке данных, поэтому
-контекст от новой модели будет +- таким же как и от старой и мы не сильно себя обманываем.
+We also take historical data, remove the last response, and generate with the new model. We need to evaluate different
+parts of
+dialogues - beginning, middle, end - meaning there should be different context sizes. Then we evaluate how much better
+the new
+response is compared to the old one according to the criteria above. We expect that we're optimizing on roughly the same
+data
+flow, so the context from the new model will be more or less the same as from the old one and we're not deceiving
+ourselves
+too much.
 
-Если получаем прирост (и не ухудшаемся по каким-то другим критериям), то выкатываем на часть пользователей.
+If we get an improvement (and don't worsen on any other criteria), then we roll it out to a subset of users.

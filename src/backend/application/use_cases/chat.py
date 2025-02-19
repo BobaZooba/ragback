@@ -13,10 +13,10 @@ logger = get_logger()
 
 class ChatUseCase:
     def __init__(
-            self,
-            retrieval_service: RetrievalService,
-            llm_prompt_builder_service: PromptBuilderServiceP[RAGPromptData],
-            llm_service: LLMServiceP,
+        self,
+        retrieval_service: RetrievalService,
+        llm_prompt_builder_service: PromptBuilderServiceP[RAGPromptData],
+        llm_service: LLMServiceP,
     ):
         self._retrieval_service = retrieval_service
         self._llm_prompt_builder_service = llm_prompt_builder_service

@@ -14,11 +14,11 @@ from backend.presentation.api.models.chat import ChatRequest, ChatResponse
 
 class ChatClient:
     def __init__(
-            self,
-            api_url: str,
-            user: User,
-            character: Character,
-            history_size: int = 15,
+        self,
+        api_url: str,
+        user: User,
+        character: Character,
+        history_size: int = 15,
     ):
         self.api_url = api_url
         self.user = user
@@ -29,7 +29,7 @@ class ChatClient:
         prefix = f"{self.character.name}:"
 
         while text.strip().startswith(prefix):
-            text = text[len(prefix):].lstrip()
+            text = text[len(prefix) :].lstrip()
 
         double_prefix = f"{prefix} {prefix}"
         while double_prefix in text:
@@ -157,12 +157,12 @@ def load_config(file_path: str) -> dict[Any, Any] | None:
     help="Path to character JSON config",
 )
 def chat(
-        api_host: str,
-        api_port: int,
-        api_method: str,
-        history_size: int,
-        user_config: str,
-        character_config: str,
+    api_host: str,
+    api_port: int,
+    api_method: str,
+    history_size: int,
+    user_config: str,
+    character_config: str,
 ) -> None:
     user_data = load_config(user_config)
     character_data = load_config(character_config)
